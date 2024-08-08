@@ -7,49 +7,49 @@ on:
 
 jobs:
   # Full build of the Mac assets
-  build-darwin:
-    runs-on: macos-12
-    environment: release
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set Version
-        shell: bash
-        run: |
-          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-          echo "RELEASE_VERSION=$(echo ${GITHUB_REF_NAME} | cut -f1 -d-)" >> $GITHUB_ENV
-      - name: key
-        env:
-          MACOS_SIGNING_KEY: ${{ secrets.MACOS_SIGNING_KEY }}
-          MACOS_SIGNING_KEY_PASSWORD: ${{ secrets.MACOS_SIGNING_KEY_PASSWORD }}
-        run: |
-          echo $MACOS_SIGNING_KEY | base64 --decode > certificate.p12
-          security create-keychain -p password build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p password build.keychain
-          security import certificate.p12 -k build.keychain -P $MACOS_SIGNING_KEY_PASSWORD -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k password build.keychain
-          security set-keychain-settings -lut 3600 build.keychain
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "stable"
-          cache: true
-      - name: Build Darwin
-        env:
-          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
-          APPLE_ID: ${{ vars.APPLE_ID }}
-          SDKROOT: /Applications/Xcode_13.4.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
-          DEVELOPER_DIR: /Applications/Xcode_13.4.1.app/Contents/Developer
-        run: |
-          ./scripts/build_darwin.sh
+  # build-darwin:
+  #   runs-on: macos-12
+  #   environment: release
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Set Version
+  #       shell: bash
+  #       run: |
+  #         echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+  #         echo "RELEASE_VERSION=$(echo ${GITHUB_REF_NAME} | cut -f1 -d-)" >> $GITHUB_ENV
+  #     - name: key
+  #       env:
+  #         MACOS_SIGNING_KEY: ${{ secrets.MACOS_SIGNING_KEY }}
+  #         MACOS_SIGNING_KEY_PASSWORD: ${{ secrets.MACOS_SIGNING_KEY_PASSWORD }}
+  #       run: |
+  #         echo $MACOS_SIGNING_KEY | base64 --decode > certificate.p12
+  #         security create-keychain -p password build.keychain
+  #         security default-keychain -s build.keychain
+  #         security unlock-keychain -p password build.keychain
+  #         security import certificate.p12 -k build.keychain -P $MACOS_SIGNING_KEY_PASSWORD -T /usr/bin/codesign
+  #         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k password build.keychain
+  #         security set-keychain-settings -lut 3600 build.keychain
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version: "stable"
+  #         cache: true
+  #     - name: Build Darwin
+  #       env:
+  #         APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+  #         APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+  #         APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+  #         APPLE_ID: ${{ vars.APPLE_ID }}
+  #         SDKROOT: /Applications/Xcode_13.4.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+  #         DEVELOPER_DIR: /Applications/Xcode_13.4.1.app/Contents/Developer
+  #       run: |
+  #         ./scripts/build_darwin.sh
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-darwin
-          path: |
-            dist/*arwin*
-            !dist/*-cov
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: dist-darwin
+  #         path: |
+  #           dist/*arwin*
+  #           !dist/*-cov
 
   # Windows builds take a long time to both install the dependencies and build, so parallelize
   # CPU generation step
@@ -266,79 +266,79 @@ jobs:
           path: dist/deps/*
 
   # Import the prior generation steps and build the final windows assets
-  build-windows:
-    environment: release
-    runs-on: windows
-    needs:
-      - generate-windows-cuda
-      - generate-windows-rocm
-      - generate-windows-cpu
-    env:
-      KEY_CONTAINER: ${{ vars.KEY_CONTAINER }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Set Version
-        shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-      - uses: 'google-github-actions/auth@v2'
-        with:
-          project_id: 'ollama'
-          credentials_json: '${{ secrets.GOOGLE_SIGNING_CREDENTIALS }}'
-      - run: echo "${{ vars.OLLAMA_CERT }}" > ollama_inc.crt
-      - name: install Windows SDK 8.1 to get signtool
-        run: |
-          $ErrorActionPreference = "Stop"
-          write-host "downloading SDK"
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=323507" -OutFile "${env:RUNNER_TEMP}\sdksetup.exe"
-          Start-Process "${env:RUNNER_TEMP}\sdksetup.exe" -ArgumentList @("/q") -NoNewWindow -Wait
-          write-host "Win SDK 8.1 installed"
-          gci -path 'C:\Program Files (x86)\Windows Kits\' -r -fi 'signtool.exe'
-      - name: install signing plugin
-        run: |
-          $ErrorActionPreference = "Stop"
-          write-host "downloading plugin"
-          Invoke-WebRequest -Uri "https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/cng-v1.0/kmscng-1.0-windows-amd64.zip" -OutFile "${env:RUNNER_TEMP}\plugin.zip"
-          Expand-Archive -Path "${env:RUNNER_TEMP}\plugin.zip" -DestinationPath ${env:RUNNER_TEMP}\plugin\
-          write-host "Installing plugin"
-          & "${env:RUNNER_TEMP}\plugin\*\kmscng.msi" /quiet
-          write-host "plugin installed"
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "stable"
-          cache: true
-      - run: go get
-      - uses: actions/download-artifact@v4
-        with:
-          name: generate-windows-cpu
-      - uses: actions/download-artifact@v4
-        with:
-          name: generate-windows-cuda
-      - uses: actions/download-artifact@v4
-        with:
-          name: windows-cuda-deps
-      - uses: actions/download-artifact@v4
-        with:
-          name: windows-rocm-deps
-      - uses: actions/download-artifact@v4
-        with:
-          name: generate-windows-rocm
-      - run: dir llm/build
-      - run: |
-          $gopath=(get-command go).source | split-path -parent
-          & "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\Launch-VsDevShell.ps1"
-          cd $env:GITHUB_WORKSPACE
-          $env:CMAKE_SYSTEM_VERSION="10.0.22621.0"
-          $env:PATH="$gopath;$env:PATH"
-          $env:OLLAMA_SKIP_GENERATE="1"
-          & .\scripts\build_windows.ps1
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-windows
-          path: |
-            dist/OllamaSetup.exe
-            dist/ollama-windows-*.zip
+  # build-windows:
+  #   environment: release
+  #   runs-on: windows
+  #   needs:
+  #     - generate-windows-cuda
+  #     - generate-windows-rocm
+  #     - generate-windows-cpu
+  #   env:
+  #     KEY_CONTAINER: ${{ vars.KEY_CONTAINER }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #     - name: Set Version
+  #       shell: bash
+  #       run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+  #     - uses: 'google-github-actions/auth@v2'
+  #       with:
+  #         project_id: 'ollama'
+  #         credentials_json: '${{ secrets.GOOGLE_SIGNING_CREDENTIALS }}'
+  #     - run: echo "${{ vars.OLLAMA_CERT }}" > ollama_inc.crt
+  #     - name: install Windows SDK 8.1 to get signtool
+  #       run: |
+  #         $ErrorActionPreference = "Stop"
+  #         write-host "downloading SDK"
+  #         Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=323507" -OutFile "${env:RUNNER_TEMP}\sdksetup.exe"
+  #         Start-Process "${env:RUNNER_TEMP}\sdksetup.exe" -ArgumentList @("/q") -NoNewWindow -Wait
+  #         write-host "Win SDK 8.1 installed"
+  #         gci -path 'C:\Program Files (x86)\Windows Kits\' -r -fi 'signtool.exe'
+  #     - name: install signing plugin
+  #       run: |
+  #         $ErrorActionPreference = "Stop"
+  #         write-host "downloading plugin"
+  #         Invoke-WebRequest -Uri "https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/cng-v1.0/kmscng-1.0-windows-amd64.zip" -OutFile "${env:RUNNER_TEMP}\plugin.zip"
+  #         Expand-Archive -Path "${env:RUNNER_TEMP}\plugin.zip" -DestinationPath ${env:RUNNER_TEMP}\plugin\
+  #         write-host "Installing plugin"
+  #         & "${env:RUNNER_TEMP}\plugin\*\kmscng.msi" /quiet
+  #         write-host "plugin installed"
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version: "stable"
+  #         cache: true
+  #     - run: go get
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: generate-windows-cpu
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: generate-windows-cuda
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: windows-cuda-deps
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: windows-rocm-deps
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: generate-windows-rocm
+  #     - run: dir llm/build
+  #     - run: |
+  #         $gopath=(get-command go).source | split-path -parent
+  #         & "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\Launch-VsDevShell.ps1"
+  #         cd $env:GITHUB_WORKSPACE
+  #         $env:CMAKE_SYSTEM_VERSION="10.0.22621.0"
+  #         $env:PATH="$gopath;$env:PATH"
+  #         $env:OLLAMA_SKIP_GENERATE="1"
+  #         & .\scripts\build_windows.ps1
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: dist-windows
+  #         path: |
+  #           dist/OllamaSetup.exe
+  #           dist/ollama-windows-*.zip
 
   # Linux x86 assets built using the container based build
   build-linux-amd64:
@@ -371,65 +371,65 @@ jobs:
             dist/*linux*
             !dist/*-cov
 
-  # Linux ARM assets built using the container based build
-  # (at present, docker isn't pre-installed on arm ubunutu images)
-  build-linux-arm64:
-    environment: release
-    runs-on: linux-arm64
-    env:
-      OLLAMA_SKIP_MANIFEST_CREATE: '1'
-      BUILD_ARCH: arm64
-      PUSH: '1'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Set Version
-        shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-      - name: 'Install Docker'
-        run: |
-          # Add Docker's official GPG key:
-          env
-          uname -a
-          sudo apt-get update
-          sudo apt-get install -y ca-certificates curl
-          sudo install -m 0755 -d /etc/apt/keyrings
-          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-          sudo chmod a+r /etc/apt/keyrings/docker.asc
+  # # Linux ARM assets built using the container based build
+  # # (at present, docker isn't pre-installed on arm ubunutu images)
+  # build-linux-arm64:
+  #   environment: release
+  #   runs-on: linux-arm64
+  #   env:
+  #     OLLAMA_SKIP_MANIFEST_CREATE: '1'
+  #     BUILD_ARCH: arm64
+  #     PUSH: '1'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #     - name: Set Version
+  #       shell: bash
+  #       run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+  #     - name: 'Install Docker'
+  #       run: |
+  #         # Add Docker's official GPG key:
+  #         env
+  #         uname -a
+  #         sudo apt-get update
+  #         sudo apt-get install -y ca-certificates curl
+  #         sudo install -m 0755 -d /etc/apt/keyrings
+  #         sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  #         sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-          # Add the repository to Apt sources:
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-          sudo usermod -aG docker $USER
-          sudo apt-get install acl
-          sudo setfacl --modify user:$USER:rw /var/run/docker.sock
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
-      - run: |
-          ./scripts/build_linux.sh
-          ./scripts/build_docker.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-linux-arm64
-          path: |
-            dist/*linux*
-            !dist/*-cov
+  #         # Add the repository to Apt sources:
+  #         echo \
+  #           "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  #           $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  #           sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  #         sudo apt-get update
+  #         sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+  #         sudo usermod -aG docker $USER
+  #         sudo apt-get install acl
+  #         sudo setfacl --modify user:$USER:rw /var/run/docker.sock
+  #     - name: Login to Docker Hub
+  #       uses: docker/login-action@v3
+  #       with:
+  #         username: ${{ vars.DOCKER_USER }}
+  #         password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+  #     - run: |
+  #         ./scripts/build_linux.sh
+  #         ./scripts/build_docker.sh
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: dist-linux-arm64
+  #         path: |
+  #           dist/*linux*
+  #           !dist/*-cov
 
   # Aggregate all the assets and ship a release
   release:
     needs:
-      - build-darwin
-      - build-windows
+      # - build-darwin
+      # - build-windows
       - build-linux-amd64
-      - build-linux-arm64
+      # - build-linux-arm64
     runs-on: linux
     environment: release
     permissions:
