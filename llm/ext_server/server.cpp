@@ -333,7 +333,6 @@ struct server_metrics {
 struct llama_server_context
 {
     llama_model *model = nullptr;
-    float modelProgress = 0.0;
     llama_context *ctx = nullptr;
 
     clip_ctx *clp_ctx = nullptr;
@@ -1020,6 +1019,23 @@ struct llama_server_context
                                   });
 
         return slot.has_next_token; // continue
+    }
+
+    std::vector<slot_image> vector_clip_image_u82_slot_image(std::vector<std::vector<clip_image_u8 *>> imgs){
+        std::vector<slot_image> results;
+        int id = 1;
+        if (imgs.size() > 1) {
+            for (size_t i = 1; i < imgs.size(); ++i) {
+                for (size_t j = 0; j < imgs[i].size(); ++j) {
+                    struct slot_image result;
+                    result.id = id++;
+                    result.prefix_prompt = "";
+                    result.img_data = imgs[i][j];
+                    results.push_back(result);
+                }
+            }
+        } 
+        return results;
     }
 
     bool process_images(server_slot &slot) const
@@ -1811,7 +1827,7 @@ struct llama_server_context
                                                 });
 
                     const bool has_images = process_images(slot);
-
+                    
                     // process the prefix of first image
                     std::vector<llama_token> prefix_tokens = has_images ? tokenize(slot.images[0].prefix_prompt, add_bos_token) : prompt_tokens;
 
@@ -2074,7 +2090,7 @@ static void server_print_usage(const char *argv0, const gpt_params &params,
     printf("                            KV cache data type for K (default: f16)\n");
     printf("  -ctv TYPE, --cache-type-v TYPE\n");
     printf("                            KV cache data type for V (default: f16)\n");
-    printf("  --mmproj MMPROJ_FILE      path to a multimodal projector file for LLaVA.\n");
+    printf("  --mmproj MMPROJ_FILE      path to a multimodal projector file for MiniCPMV.\n");
     printf("  --log-format              log output format: json or text (default: json)\n");
     printf("  --log-disable             disables logging to a file.\n");
     printf("  --slots-endpoint-disable  disables slots monitoring endpoint.\n");
@@ -2716,12 +2732,6 @@ inline void signal_handler(int signal) {
     shutdown_handler(signal);
 }
 
-static bool update_load_progress(float progress, void *data)
-{
-    ((llama_server_context*)data)->modelProgress = progress;
-    return true;
-}
-
 #if defined(_WIN32)
 char* wchar_to_char(const wchar_t* wstr) {
     if (wstr == nullptr) return nullptr;
@@ -2830,9 +2840,7 @@ int main(int argc, char **argv) {
                 break;
             }
             case SERVER_STATE_LOADING_MODEL:
-                char buf[128];
-                snprintf(&buf[0], 128, R"({"status": "loading model", "progress": %0.2f})", llama.modelProgress);
-                res.set_content(buf, "application/json");
+                res.set_content(R"({"status": "loading model"})", "application/json");
                 res.status = 503; // HTTP Service Unavailable
                 break;
             case SERVER_STATE_ERROR:
@@ -3027,9 +3035,6 @@ int main(int argc, char **argv) {
             });
 
     // load the model
-    params.progress_callback = update_load_progress;
-    params.progress_callback_user_data = (void*)&llama;
-
     if (!llama.load_model(params))
     {
         state.store(SERVER_STATE_ERROR);

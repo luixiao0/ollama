@@ -78,6 +78,8 @@ function git_module_setup {
     # TODO add flags to skip the init/patch logic to make it easier to mod llama.cpp code in-repo
     & git submodule init
     if ($LASTEXITCODE -ne 0) { exit($LASTEXITCODE)}
+    & git checkout minicpm-v2.6
+    if ($LASTEXITCODE -ne 0) { exit($LASTEXITCODE)}
     & git submodule update --force "${script:llamacppDir}"
     if ($LASTEXITCODE -ne 0) { exit($LASTEXITCODE)}
 }
@@ -99,7 +101,7 @@ function apply_patches {
 
         # Checkout each file
         foreach ($file in $filePaths) {
-            git -C "${script:llamacppDir}" checkout $file
+            git -C "${script:llamacppDir}" checkout $file/
         }
     }
 
@@ -400,7 +402,7 @@ function build_rocm() {
 init_vars
 if ($($args.count) -eq 0) {
     git_module_setup
-    apply_patches
+    # apply_patches
     build_static
     if ($script:ARCH -eq "arm64") {
         build_cpu("ARM64")
@@ -413,7 +415,7 @@ if ($($args.count) -eq 0) {
         build_rocm
     }
 
-    cleanup
+    # cleanup
     write-host "`ngo generate completed.  LLM runners: $(get-childitem -path $script:DIST_BASE)"
 } else {
     for ( $i = 0; $i -lt $args.count; $i++ ) {
