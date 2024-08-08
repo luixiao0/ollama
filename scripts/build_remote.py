@@ -53,7 +53,7 @@ print("Force pushing content to remote...")
 remote.push(force=True).raise_if_error()
 
 print("Ensuring correct branch checked out on remote via ssh...")
-subprocess.check_call(['ssh', netloc, 'cd', path, ';', 'git', 'checkout', branch_name])
+# subprocess.check_call(['ssh', netloc, 'cd', path, ';', 'git', 'checkout', branch_name])
 
 
 # TODO - add some hardening to try to figure out how to set up the path properly
