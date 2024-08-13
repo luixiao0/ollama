@@ -55,7 +55,7 @@ git_module_setup() {
         rm -rf ${LLAMACPP_DIR}
     fi
     git submodule init
-    git submodule update --force ${LLAMACPP_DIR}
+    # git submodule update --force ${LLAMACPP_DIR}
 
 }
 
