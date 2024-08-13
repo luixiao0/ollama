@@ -1,5 +1,5 @@
 [submodule "llama.cpp"]
 	path = llm/llama.cpp
-	url = https://github.com/luixiao0/ollama
+	url = https://github.com/luixiao0/llama.cpp
 	shallow = true
 	branch = merge-ahead
